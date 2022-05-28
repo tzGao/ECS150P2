@@ -18,7 +18,7 @@ struct Process* makeProcess(char* name, int time, float prob) {
 }
 
 
-struct queue readFile(char* fileName, FILE* fp){
+queue_t readFile(char* fileName, FILE* fp){
     fp = fopen(fileName, "r");
 
     queue_t q = queue_create();
@@ -38,14 +38,24 @@ struct queue readFile(char* fileName, FILE* fp){
         }
     } while (curr != EOF);
 
-
-    //printf("%d \n", queue_length(q));
-
     fclose(fp);
+    return q
 }
 
 int main(int argc, char* argv[]){
+    (void) srandom(12345);
     FILE* fp;
-    struct queue q = readFile(argv[1], fp);
+    queue_t cpuQ = readFile(argv[1], fp);
+    queue_t ioQ = queue_create();
+    int time = 0;
+    /*
+    while (queue_length(cpuQ) != 0 && queue_length(ioQ) != 0) {
+    }
+    */
+    int r = (int) random() % 100;
+    struct Process* p = cpuQ->head->value;
+    printf("%d", p->time);
+
 
 }
+
