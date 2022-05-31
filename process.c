@@ -6,11 +6,13 @@
 
 struct process {
 	char *name;
+    int time;
     int totalCPU;
     int completeTime;
     int givenCPU;
     int BlockedIO;
     int doingIO;
+    float prob;
 };
 
 struct resource {
@@ -25,20 +27,22 @@ struct resource {
 queue_t q;
 struct resource *sysCPU, *sysIO;
 
-struct process* generateProcess(char *name, int totalCPU, int completeTime, int givenCPU, int BlockedIO, int doingIO) {
+struct process* generateProcess(char *name, int time,int totalCPU, int completeTime, int givenCPU, int BlockedIO, int doingIO,float prob) {
     struct process* tmp = (struct process*)malloc(sizeof(struct process));
     tmp->name = name;
+    tmp->time = time;
     tmp->totalCPU = totalCPU;
 	tmp->completeTime = completeTime;
 	tmp->givenCPU = givenCPU;
 	tmp->BlockedIO = BlockedIO;
     tmp->doingIO = doingIO;
+    tmp->prob = prob;
     return tmp;
 }
 
 void displayProcess(struct process* p) {
-    printf("name\ttotalCPU\tcompleteTime\tgivenCPU\tBlockedIO\tdoingIO\n");
-    printf("%s\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", p->name, p->totalCPU, p->completeTime, p->givenCPU, p->BlockedIO, p->doingIO);
+    printf("name\ttime\ttotalCPU\tcompleteTime\tgivenCPU\tBlockedIO\tdoingIO\tprob\n");
+    printf("%s\t%d\t%d\t\t%d\t\t%d\t\t%d\t\t%dt\t%dt\t%f\n", p->name,p->time, p->totalCPU, p->completeTime, p->givenCPU, p->BlockedIO, p->doingIO, p->prob);
 }
 
 struct resource* buildResource(char *name, int busy, int idle, int number) {
@@ -79,8 +83,8 @@ int main(void) {
     q = queue_create();
 
 	struct process* ptr;
-    struct process* p1 = generateProcess("p1", 1, 2, 3, 4, 5);
-    struct process* p2 = generateProcess("p2", 5, 4, 3, 2, 1);
+    struct process* p1 = generateProcess("p1", 1,0, 2, 3, 4, 5,2.0);
+    struct process* p2 = generateProcess("p2", 5,0, 4, 3, 2, 1,2.0);
 
     queue_enqueue(q, p1);
     queue_enqueue(q, p2);
