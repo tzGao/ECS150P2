@@ -16,6 +16,7 @@ struct Process {
     int givenCPU;
     int blockedIO;
     int doingIO;
+    int rr;
 };
 
 struct Process* makeProcess(char* name, int time, float prob) {
@@ -28,6 +29,7 @@ struct Process* makeProcess(char* name, int time, float prob) {
     p->givenCPU = 0;
     p->blockedIO = 0;
     p->doingIO = 0;
+    p->rr = 0;
     return p;
 }
 
@@ -90,7 +92,7 @@ queue_t readFile(char* fileName, FILE* fp, char* option, char* exe){
             }
 
             struct Process* p = makeProcess(name, time, prob);
-            printf("%s %d %f \n", p->name, p->time, p->prob);
+            // printf("%s %d %f \n", p->name, p->time, p->prob);
             queue_enqueue(q, p);
 
         }
@@ -100,24 +102,38 @@ queue_t readFile(char* fileName, FILE* fp, char* option, char* exe){
     return q;
 }
 
-void checkBlock(struct Process* head, int time) {
+void checkBlock(struct Process* head, int time, char* option) {
     
     if (head->time < 2) {
-        printf("<%s> will not be block since time <2 \n", head->name);
+        // printf("<%s> will not be block since time <2 \n", head->name);
         head->willBlock = false;
     }
     else{ 
         int r =(int) random();
         float b = (float) r / RAND_MAX;
-        printf("<%s> checking for block, using random number %d at %f \n", head->name, r, b);
+        // printf("<%s> checking for block, using random number %d at %f \n", head->name, r, b);
         if (head->prob >= b && head->time > 0) {
             int rand = (int) random();
             
-            int r = ( rand % head->time) + 1;
-            printf("\t\t\t\tCPU rand: %d\tr = %d\n", rand, r);
+            int r;
+            // FCFS
+            if(option[1] == 'f'){
+                r = ( rand % head->time) + 1;
+            }
+            // Round Robin
+            else{
+                if(head->time <= 5){
+                    r = ( rand % head->time) + 1;
+                }
+                else{
+                    r = ( rand % 5) + 1;
+                }
+            }
+            
+            // printf("\t\t\t\tCPU rand: %d\tr = %d\n", rand, r);
             head->timeToBlock = time + r -1 ;
 
-            printf("<%s> will block in %d\n", head->name, r);
+            // printf("<%s> will block in %d\n", head->name, r);
             head->willBlock = true;
         }
     }
@@ -138,8 +154,8 @@ int main(int argc, char* argv[]){
     * printing process information
     */
     /* header line */
-    // printf("Processes:\n\n");
-    // printf("   name     CPU time  when done  cpu disp  i/o disp  i/o time\n");
+    printf("Processes:\n\n");
+    printf("   name     CPU time  when done  cpu disp  i/o disp  i/o time\n");
 
     int cpuBusy = 0;
     int cpuIdle = 1;
@@ -154,132 +170,149 @@ int main(int argc, char* argv[]){
     int io_block=0;
 
     
-    printf("/--------------------------/\n");
+    // printf("/--------------------------/\n");
     int time = 0;
     
     struct Process* CPU = NULL;
     struct Process* IO = NULL;
     while (queue_length(cpuQ) != 0 || queue_length(ioQ) != 0 || CPU != NULL || IO != NULL) {
-        time++;
-        printf("/----------------------------CURRENT TICK %d----------------------------/\n", time);
-        if(option[1] == 'f'){
-            printf("/-------/READY QUEUE FUNCTION/-------/\n");
-            if (queue_length(cpuQ) > 0) {
-                if (CPU == NULL) {
-                    struct Process* head = cpuQ->head->value;
-                    checkBlock(head, time);
-                    CPU = head;
-                    CPU->givenCPU++;
-                    printf("<%s> HAS Entered CPU, TIME: %d\n", CPU->name, time);
-                    queue_delete(cpuQ, head);
-                    cpuDispatches++;
-                }
-            }
         
-            printf("/-------/CPU FUNCTION/---------------/\n");
-            if (CPU != NULL) {
-                printf("CPU ACTIVE: <%s> TIME: %d\n", CPU->name, CPU->time);
-                if (CPU->time == 0)  { 
-                    printf("<%s> HAS FINISHED, TIME: %d\n", CPU->name, time);
-                    /* for process information */
-                    printf("%-10s %6d     %6d    %6d    %6d    %6d\n", CPU->name, CPU->totalCPU, time, CPU->givenCPU, CPU->blockedIO, CPU->doingIO);
-                    free(CPU);
-                    CPU = NULL;
-                    if (queue_length(cpuQ) == 0 && queue_length(ioQ) == 0 && IO == NULL){
-                        
-                    }else{
-                        cpuIdle++;
-                    }
-                    
-                }
-                else {
-                    CPU->time--;
-                    CPU->totalCPU++;
-                    printf("PROCESSING <%s> , REMAINING TIME In CPU: %d\n", CPU->name, CPU->timeToBlock-time);
-                    printf("<%s> with process time %d, timeToBlock: %d, willBlock: %d \n,", CPU->name, CPU->time,CPU->timeToBlock,CPU->willBlock);
-                    if (CPU->timeToBlock == time && CPU->timeToBlock != 0 && CPU->willBlock){
-                        printf("<%s> EXITING CPU TO IO QUEUE, CPU TIME: %d\n", CPU->name, CPU->time);
-                        CPU->timeToBlock = 0;
-                        CPU->blockedIO++;
-                        queue_enqueue(ioQ, CPU);
-                        CPU = NULL;
-                        io_block = 1;
-                        printf("io_block has set to be 1\n");
-                    }
-                    cpuBusy++;
+        time++;
+        //printf("/----------------------------CURRENT TICK %d----------------------------/\n", time);
+
+        //printf("/-------/READY QUEUE FUNCTION/-------/\n");
+        if (queue_length(cpuQ) > 0) {
+            if (CPU == NULL) {
+                struct Process* head = cpuQ->head->value;
+                checkBlock(head, time, option);
+                CPU = head;
+                CPU->givenCPU++;
+                CPU->rr = 0;
+                // printf("<%s> HAS Entered CPU, TIME: %d\n", CPU->name, time);
+                queue_delete(cpuQ, head);
+                cpuDispatches++;
+            }
+        }
+    
+
+        //printf("/-------/CPU FUNCTION/---------------/\n");
+        if (CPU != NULL) {
+            //printf("CPU ACTIVE: <%s> TIME: %d\n", CPU->name, CPU->time);
+            if (CPU->time == 0)  { 
+                //printf("<%s> HAS FINISHED, TIME: %d\n", CPU->name, time);
+
+                /* for process information */
+                printf("%-10s %6d     %6d    %6d    %6d    %6d\n", CPU->name, CPU->totalCPU, time, CPU->givenCPU, CPU->blockedIO, CPU->doingIO);
+                free(CPU);
+                CPU = NULL;
+
+                if (!(queue_length(cpuQ) == 0 && queue_length(ioQ) == 0 && IO == NULL)){
+                    cpuIdle++;
                 }
             } else {
-                cpuIdle++;
+                CPU->time--;
+                CPU->rr++;
+                CPU->totalCPU++;
+                
+                 //printf("PROCESSING <%s> , REMAINING TIME In CPU: %d\n", CPU->name, CPU->timeToBlock-time);
+                 //printf("<%s> with process time %d, timeToBlock: %d, willBlock: %d \n,", CPU->name, CPU->time,CPU->timeToBlock,CPU->willBlock);
+                
+                if (CPU->timeToBlock == time && CPU->timeToBlock != 0 && CPU->willBlock){
+                     //printf("<%s> EXITING CPU TO IO QUEUE, CPU TIME: %d\n", CPU->name, CPU->time);
+                    CPU->timeToBlock = 0;
+                    CPU->blockedIO++;
+                    queue_enqueue(ioQ, CPU);
+                    CPU = NULL;
+                    io_block = 1;
+                    //printf("io_block has set to be 1\n");
+
+                } else if ((CPU->rr == 5 || CPU->time == 0) && option[1] == 'r' && !CPU->willBlock) {
+                    //printf("QUANTA ENDED\n");
+                    queue_enqueue(cpuQ, CPU);
+                    CPU = NULL;
+                    if (queue_length(cpuQ) > 0) {
+                        if (CPU == NULL) {
+                                struct Process* head = cpuQ->head->value;
+                                checkBlock(head, time, option);
+                                CPU = head;
+                                CPU->givenCPU++;
+                                CPU->rr = 0;
+                                //printf("<%s> HAS Entered CPU, TIME: %d\n", CPU->name, time);
+                                queue_delete(cpuQ, head);
+                                cpuDispatches++;
+                            }
+                        }
+                }
+                cpuBusy++;
             }
 
-
-            
-
-
-            
-
-            if(io_block==1 && IO == NULL && queue_length(ioQ) ==1){//situation with tick5, file2
-                printf("Didn't run because the process just enter the io queue at the same cpu cycle/\n");
-                io_block=0;
-                ioIdle++;
-                printf("io_block has set to be 0\n");
-            }  
-            else{
-                io_block=0;
-                printf("/-------/IO QUEUE FUNCTION/----------/\n");
-                if (queue_length(ioQ) > 0) {
-                    if (IO == NULL) {
-                        struct Process* curr = ioQ->head->value;
-                        int r = 0;
-                        if(curr->time == 0){
-                            r=1;
-                        }
-                        else if (curr->time > 0) {
-                            int rand = (int) random();
-                            r = (rand % 30) + 1;
-                            printf("\t\t\t\tI/O rand: %d\tr = %d\n", rand, r);
-                        }
-                        curr->ioTime = r;
-                        printf("|<%s>| ENTERING IO, ioTime: %d\n", curr->name, r);
-                        IO = curr;
-                        IO->doingIO += r;
-                        queue_delete(ioQ, curr);
-                        ioDispatches++;
-                        
-                    }
-                }    
-
-                
-                printf("/-------/IO FUNCTION/----------------/\n");
-                if (IO != NULL) {
-                    IO->ioTime--;
-                    printf("IO ACTIVE, CURRENT PROCESS <%s> Remaining ioTIME: %d\n", IO->name, IO->ioTime);
-                    if (IO->ioTime <= 0) {
-                        printf("|<%s>| EXITING IO, entering CPU\n", IO->name);
-                        queue_enqueue(cpuQ, IO);
-                        IO = NULL;
-                        }
-                    ioBusy++;
-                } else {
-                    ioIdle++;
-                    printf("io idle +1\n");
-                }
-                
-                
-            }  
-            
-            printf("\n");
+        } else {
+            cpuIdle++;
         }
+
+
+        
+
+
+        
+
+        if(io_block==1 && IO == NULL && queue_length(ioQ) ==1){//situation with tick5, file2
+            // printf("Didn't run because the process just enter the io queue at the same cpu cycle/\n");
+            io_block=0;
+            ioIdle++;
+            // printf("io_block has set to be 0\n");
+        }  
         else{
-            break;
-        }   
+            io_block=0;
+            // printf("/-------/IO QUEUE FUNCTION/----------/\n");
+            if (queue_length(ioQ) > 0) {
+                if (IO == NULL) {
+                    struct Process* curr = ioQ->head->value;
+                    int r = 0;
+                    if(curr->time == 0){
+                        r=1;
+                    }
+                    else if (curr->time > 0) {
+                        int rand = (int) random();
+                        r = (rand % 30) + 1;
+                        // printf("\t\t\t\tI/O rand: %d\tr = %d\n", rand, r);
+                    }
+                    curr->ioTime = r;
+                    // printf("|<%s>| ENTERING IO, ioTime: %d\n", curr->name, r);
+                    IO = curr;
+                    IO->doingIO += r;
+                    queue_delete(ioQ, curr);
+                    ioDispatches++;
+                    
+                }
+            }    
+
+            
+            // printf("/-------/IO FUNCTION/----------------/\n");
+            if (IO != NULL) {
+                IO->ioTime--;
+                // printf("IO ACTIVE, CURRENT PROCESS <%s> Remaining ioTIME: %d\n", IO->name, IO->ioTime);
+                if (IO->ioTime <= 0) {
+                    // printf("|<%s>| EXITING IO, entering CPU\n", IO->name);
+                    queue_enqueue(cpuQ, IO);
+                    IO = NULL;
+                    }
+                ioBusy++;
+            } else {
+                ioIdle++;
+                // printf("io idle +1\n");
+            }
+            
+            
+        }  
+        
+        // printf("\n");
+        
     }
-    // time=time-1;
-    // cpuIdle=cpuIdle-1;
-    // ioIdle=ioIdle+1;
-    printf("System:\nThe wall clock time at which the simulation finished: %d\n", time);
-    printf("CPU:\nTotal time spent busy: %d\nTotal time spent idle: %d\nNumber of dispatches: %d\n", cpuBusy, cpuIdle, cpuDispatches);
-    printf("IO:\nTotal time spent busy: %d\nTotal time spent idle: %d\nNumber of dispatches: %d\n", ioBusy, ioIdle, ioDispatches);
+
+    // printf("System:\nThe wall clock time at which the simulation finished: %d\n", time);
+    // printf("CPU:\nTotal time spent busy: %d\nTotal time spent idle: %d\nNumber of dispatches: %d\n", cpuBusy, cpuIdle, cpuDispatches);
+    // printf("IO:\nTotal time spent busy: %d\nTotal time spent idle: %d\nNumber of dispatches: %d\n", ioBusy, ioIdle, ioDispatches);
     
     double cpuUtil = (double)cpuBusy / (double)time; 
     double ioUtil = (double)ioBusy / (double)time; 
